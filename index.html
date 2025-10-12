@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tattler - Admin de Restaurantes</title>
+    <style>
+        /* --- ESTILOS BÁSICOS PARA QUE SE VEA BIEN --- */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f9; color: #333; margin: 0; padding: 20px; }
+        h1, h2 { text-align: center; color: #2c3e50; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        form { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        form input, form button { padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; }
+        form input { flex: 1 1 150px; }
+        form button { background-color: #3498db; color: white; border: none; cursor: pointer; transition: background-color 0.3s; }
+        form button:hover { background-color: #2980b9; }
+        #restaurantList { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .restaurant-card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #fafafa; }
+        .restaurant-card h3 { margin-top: 0; }
+        .restaurant-card .actions { margin-top: 10px; display: flex; gap: 10px; }
+        .actions button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; }
+        .edit-btn { background-color: #f1c40f; }
+        .delete-btn { background-color: #e74c3c; color: white; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Tattler API</h1>
+        
+        <h2>Añadir / Editar Restaurante</h2>
+        <form id="restaurantForm">
+            <input type="hidden" id="restaurantId">
+            <input type="text" id="name" placeholder="Nombre" required>
+            <input type="text" id="cuisine" placeholder="Tipo de Cocina" required>
+            <input type="text" id="address" placeholder="Dirección">
+            <input type="text" id="city" placeholder="Ciudad">
+            <input type="number" id="rating" placeholder="Calificación (1-5)" step="0.1">
+            <input type="text" id="price_range" placeholder="Rango de Precio ($$$)">
+            <button type="submit">Guardar</button>
+        </form>
+
+        <h2>Filtrar Restaurantes</h2>
+        <form id="filterForm">
+            <input type="number" id="filterRating" placeholder="Calificación mínima" step="0.1">
+            <input type="text" id="filterPrice" placeholder="Rango de Precio ($$$)">
+            <button type="submit">Filtrar</button>
+        </form>
+
+        <h2>Lista de Restaurantes</h2>
+        <div id="restaurantList">
+            </div>
+    </div>
+
+    <script>
+        // --- LÓGICA DE JAVASCRIPT PARA INTERACTUAR CON LA API ---
+
+        const API_URL = 'http://localhost:5000/api/restaurants';
+
+        // Selectores de elementos del DOM
+        const restaurantList = document.getElementById('restaurantList');
+        const restaurantForm = document.getElementById('restaurantForm');
+        const filterForm = document.getElementById('filterForm');
+        const restaurantId = document.getElementById('restaurantId');
+        
+        // FUNCIÓN PRINCIPAL: Obtener y mostrar los restaurantes
+        const fetchRestaurants = async (filters = {}) => {
+            let url = API_URL;
+            const queryParams = new URLSearchParams(filters).toString();
+            if (queryParams) {
+                url += `?${queryParams}`;
+            }
+
+            try {
+                const response = await fetch(url);
+                const restaurants = await response.json();
+                displayRestaurants(restaurants);
+            } catch (error) {
+                console.error('Error al obtener restaurantes:', error);
+            }
+        };
+
+        // FUNCIÓN para mostrar los restaurantes en el HTML
+        const displayRestaurants = (restaurants) => {
+            restaurantList.innerHTML = ''; // Limpiar la lista
+            restaurants.forEach(restaurant => {
+                const card = document.createElement('div');
+                card.className = 'restaurant-card';
+                card.innerHTML = `
+                    <h3>${restaurant.name}</h3>
+                    <p><strong>Cocina:</strong> ${restaurant.cuisine}</p>
+                    <p><strong>Ciudad:</strong> ${restaurant.city}</p>
+                    <p><strong>Calificación:</strong> ${restaurant.rating}</p>
+                    <p><strong>Precio:</strong> ${restaurant.price_range}</p>
+                    <div class="actions">
+                        <button class="edit-btn" data-id="${restaurant._id}">Editar</button>
+                        <button class="delete-btn" data-id="${restaurant._id}">Eliminar</button>
+                    </div>
+                `;
+                restaurantList.appendChild(card);
+            });
+        };
+
+        // EVENTO: Enviar el formulario para AÑADIR o EDITAR
+        restaurantForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = restaurantId.value;
+            const restaurantData = {
+                name: document.getElementById('name').value,
+                cuisine: document.getElementById('cuisine').value,
+                address: document.getElementById('address').value,
+                city: document.getElementById('city').value,
+                rating: document.getElementById('rating').value,
+                price_range: document.getElementById('price_range').value,
+            };
+
+            const method = id ? 'PUT' : 'POST';
+            const url = id ? `${API_URL}/${id}` : API_URL;
+
+            try {
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(restaurantData)
+                });
+                if (response.ok) {
+                    restaurantForm.reset();
+                    restaurantId.value = '';
+                    fetchRestaurants(); // Recargar la lista
+                } else {
+                    console.error('Error al guardar el restaurante');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        // EVENTO: Enviar el formulario para FILTRAR
+        filterForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const filters = {};
+            const rating = document.getElementById('filterRating').value;
+            const price = document.getElementById('filterPrice').value;
+
+            if (rating) filters.rating = rating;
+            if (price) filters.price_range = price;
+            
+            fetchRestaurants(filters);
+        });
+
+        // EVENTO: Clics en los botones de EDITAR y ELIMINAR
+        restaurantList.addEventListener('click', async (e) => {
+            // Eliminar un restaurante
+            if (e.target.classList.contains('delete-btn')) {
+                const id = e.target.dataset.id;
+                if (confirm('¿Estás seguro de que quieres eliminar este restaurante?')) {
+                    try {
+                        const response = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                        if (response.ok) {
+                            fetchRestaurants(); // Recargar la lista
+                        }
+                    } catch (error) {
+                        console.error('Error al eliminar:', error);
+                    }
+                }
+            }
+
+            // Editar un restaurante
+            if (e.target.classList.contains('edit-btn')) {
+                const id = e.target.dataset.id;
+                try {
+                    const response = await fetch(`${API_URL}/${id}`);
+                    const restaurant = await response.json();
+                    
+                    // Llenar el formulario con los datos
+                    restaurantId.value = restaurant._id;
+                    document.getElementById('name').value = restaurant.name;
+                    document.getElementById('cuisine').value = restaurant.cuisine;
+                    document.getElementById('address').value = restaurant.address;
+                    document.getElementById('city').value = restaurant.city;
+                    document.getElementById('rating').value = restaurant.rating;
+                    document.getElementById('price_range').value = restaurant.price_range;
+                    window.scrollTo(0, 0); // Subir al inicio de la página
+                } catch (error) {
+                    console.error('Error al obtener datos para editar:', error);
+                }
+            }
+        });
+
+        // Carga inicial de restaurantes cuando la página está lista
+        document.addEventListener('DOMContentLoaded', fetchRestaurants);
+    </script>
+
+</body>
+</html>
